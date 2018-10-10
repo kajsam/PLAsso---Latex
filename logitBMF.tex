@@ -1,0 +1,143 @@
+\documentclass[12pt]{article}
+
+% Packages
+\usepackage{amssymb}
+\usepackage{amsmath} % align
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{subfig}
+\usepackage{multirow}
+\usepackage{centernot}
+\usepackage{setspace}
+
+
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+
+\begin{document}
+
+\newcommand{\cpos}{\text{\scriptsize{{\it POS}}}}
+\newcommand{\cneg}{\text{\scriptsize{{\it NEG}}}}
+\newcommand{\mb}{\mathbf}
+
+\section{Logit BMF} \label{sec:LBMF} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Background} 
+Let $\mathbf{X}$ be a $d \times n$ matrix representing the observed gene expressions for $d$ genes in $n$ cells, such that an element
+\begin{align}
+   X_{ij} & =    
+   \begin{cases}
+      0 \text{ if the $jth$ gene in the $ith$ cell is not expressed} \\
+      1 \text{ if the $jth$ gene in the $ith$ cell is expressed}.
+    \end{cases}
+\end{align}
+
+Each cell belongs to either Class 1 (Stromal) or Class 2 (Luminal).
+Let $\mathbb{Z}_n$ be the set of integers $\{1, 2, \ldots, n\}$, and let $\mathbb{C} \subset \mathbb{Z}_n$ denote the cells in Class 1. 
+Let $\mathbb{R} \subseteq \mathbb{Z}_d$ denote the genes that are expressed in Class 1 but not in Class 2. 
+
+The rank $k$ Binary Matrix Factorization (BMF) of the binary matrix $\mathbf{X}$ of size $d \times n$ consists of $k$ components, eachone is the matrix product of a binary column vector of length $d$ and a binary row vector of length $n$. 
+The approximation matrix, $\mathbb{A}$, is the boolean sum of the $k$ components, with $a_{ij}$ denoting its entries. 
+
+Denote by $\mathbf{1}_{\mathbb{R}} \, \mathbf{1}_{\mathbb{C}}^T$ the rank $1$ BMF of the gene expression matrix $\mathbf{X}$, where $\mathbf{1}_{\mathbb{R}}$ is the binary column vector of length $d$ with entries
+\begin{align}
+   1_{\mathbb{R},j} & =    
+   \begin{cases}
+      0 \text{ if } j \notin \mathbb{R} \\
+      1 \text{ if } j \in \mathbb{R},
+    \end{cases}
+\end{align}
+and $\mathbf{1}_{\mathbb{C}}$ is the binary column vector of length $n$ with entries 
+\begin{align}
+   1_{\mathbb{C},i} & =    
+   \begin{cases}
+      0 \text{ if } i \notin \mathbb{C} \\
+      1 \text{ if } i \in \mathbb{C}.
+    \end{cases}
+\end{align}
+To find $\mathbb{R}$ and $\mathbb{C}$, optimize the following
+\begin{align}
+  \min_{\mathbb{R}, \mathbb{C}} d( \mathbf{X}, \mathbf{1}_{\mathbb{R}} \, \mathbf{1}_{\mathbb{C}}^T),
+\end{align}
+where $d$ is some distance function, typically Hammon or Jaccard. 
+
+The entries of $\mathbf{X}$ can be regarded as observations of random variables from a Bernoulli distribution
+\begin{align*}
+  P(X = x|\pi) = \pi^x(1-\pi)^{1-x}, \, x \in \{0, 1\}, \, 0 \leq \pi \leq 1, \, EX = \pi, 
+\end{align*}
+i.e. $\pi$ is the probability of a gene being expressed in a cell. 
+
+\vspace{3mm}
+
+\noindent {\it For details on the following, see Casella and Berger, Ch. 12.3 Logistic Regression } \\
+We will used a Generalized Linear model (GLM) to describe the relationship between the mean of $X$ and $a$ (the entries of $\mathbf{A}$).
+$X_{ij}$ are the random component, $\alpha + \beta a_{ij}$ is the (linear) systematic component, and $g(\pi) = \log(\pi/(1-\pi))$ is the link function. 
+\begin{align}
+  \log \Big ( \frac{\pi_{ij}}{1-\pi_{ij}} \Big) \text{ is called the {\it logit} function.}
+\end{align}
+The link function can be rewritten as
+\begin{align}
+  \pi(a_{ij}) =  \frac{e^{\alpha+\beta a_{ij}}}{1+e^{\alpha+\beta a_{ij}}}, 
+\end{align}
+and we have $0 < \pi(a) < 1$.
+Note that since $\pi(0) = 1-\pi(1)$, $\alpha$ is a function of $\beta$.
+
+% $\alpha$ is the log-odds of success at $a = 0$. 
+% $\beta$ is the change in the log-odds of success corresponding to a one-unit increase in $a$.  
+
+Let $X_{ij} \sim Bernoulli(\pi_{ij})$ and $\pi(a_{ij}) = F_{ij} = F(\alpha + \beta a_{ij})$, then the log likelihood function is
+%\begin{align*}
+%  L(\alpha, \beta| \mathbf{X}) = \prod_{ij}^{d,n} \pi(a_{ij})^{x_{ij}} \big (1-\pi(a_{ij}) \big ) ^{1-x_{ij}} = \prod_{ij}^{d,n} F_{ij}^{x_{ij}}(1-F_{ij})^{1-x_{ij}}
+%\end{align*}
+\begin{align}
+  \log L(\alpha, \beta| \mathbf{X}) = \sum_{i}^{n} \sum_{j}^{d} \Big \{ \log (1-F_{ij}) + x_{ij} \log \big (\frac{F_{ij}}{1 - F_{ij}} \big ) \Big \}
+\end{align}
+The maximum likelihood estimation (MLE) for $\alpha$ and $\beta$ is 
+\begin{align}
+  \sum_{i}^{n} \sum_{j}^{d} (x_{ij} - F_{ij} ) & = 0 \\
+  \sum_{i}^{n} \sum_{j}^{d} (x_{ij} - F_{ij}) a_{ij} & = 0.
+\end{align}
+For the above to be valid, we need to assume that the $X_{ij}$'s are independent. This might be unrealistic, but that's how we roll.
+
+\subsection{Logistic matrix factorization} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+We want to solve 
+\begin{align}
+  \min_{\mathbb{R},\mathbb{C}, \alpha, \beta} d \big (\mathbf{X}, \pi(0) \mathbf{J} +  (1 - 2 \pi(0)) \mathbf{1}_{\mathbb{R}} \, \mathbf{1}_{\mathbb{C}}^T),
+\end{align}
+where $\mathbf{J}$ is a $d \times n$ matrix of $1$'s. 
+We will do this iteratively. 
+Let $\mathbb{R}_{(t)}$, $\mathbb{C}_{(t)}$, $\hat{\alpha}_{(t)}$ and $\hat{\beta}_{(t)}$ be the values of the $t$th iteration. 
+We already have $\mathbb{R}_{(0)}$, $\mathbb{C}_{(0)}$, from $\mathbf{A}$, the rank $1$ BMF obtained from $\mathbf{X}$, and we can get $\hat{\alpha}_{(t)}$ and $\hat{\beta}_{(t)}$ by plug and play from $\mathbb{R}_{(t-1)}$, $\mathbb{C}_{(t-1)}$.
+
+We want to obtain $\mathbb{R}_{(t)}$, $\mathbb{C}_{(t)}$, by solving
+\begin{align} \label{eq:LogitBMF}
+  \min_{\mathbb{R},\mathbb{C}} d \big (\mathbf{X}, \mathbf{B}_{(t)}),
+\end{align}
+where $\mathbf{B}_{(t)}$ has the entries 
+\begin{align*}
+  b_{ij} & = \hat{\pi}_{(t)}(0) +  (1-2 \hat{\pi}_{(t)}(0)) a_{ij}, \text{ where } \\
+  \hat{\pi}_{(t)}(0) & =  e^{\hat{\alpha}_{(t)}}/(1+e^{\hat{\alpha}_{(t)}}) \\
+  \hat{\pi}_{(t)}(1) & =  e^{\hat{\alpha}_{(t)}+\hat{\beta}_{(t)}}/(1+e^{\hat{\alpha}_{(t)}+\hat{\beta}_{(t)}}) \\
+  a_{ij} & \text{ : will be the entries of }  \mathbf{1}_{\mathbb{R}_{(t)}} \, \mathbf{1}_{\mathbb{C}_{(t)}}^T, 
+\end{align*} 
+i.e. not a binary matrix but a non-negative (it is even positive).
+Let $ \epsilon =  \hat{\pi}_{(t)}(0)$ for simpler notation (same as in Siyao`s document).
+
+\vspace{3mm}
+{\bf How do we optimize Eq.~\ref{eq:LogitBMF} ?}\\
+Is it possible to to make a new matrix $\mathbf{X}^\mathbf{B}$ that takes this into account? 
+
+\begin{align} \label{eq:XB}
+  \min_{\mathbb{R},\mathbb{C}} d \big (\mathbf{X}^\mathbf{B}, \mathbf{1}_{\mathbb{R}} \, \mathbf{1}_{\mathbb{C}}^T)
+\end{align}
+What about setting $x_{ij} = b_{ij}$ and solve for $a_{ij}$:
+\begin{align} \label{eq:xb}
+  x_{ij}^b = \frac{x_{ij}-\epsilon}{1-2\epsilon}
+\end{align}
+We then have a real valued matrix with only two possible entries that we want to approximate by a binary matrix. 
+We would need a different distance function.
+
+
+
+\end{document}
