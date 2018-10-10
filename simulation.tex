@@ -1,0 +1,161 @@
+\documentclass[12pt]{article}
+
+% Packages
+\usepackage{amssymb}
+\usepackage{amsmath} % align
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{subfig}
+\usepackage{multirow}
+\usepackage{centernot}
+\usepackage{setspace}
+
+
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+
+\begin{document}
+
+\newcommand{\cpos}{\text{\scriptsize{{\it POS}}}}
+\newcommand{\cneg}{\text{\scriptsize{{\it NEG}}}}
+\newcommand{\mb}{\mathbf}
+
+\section{Simulated matrices} \label{sec:Sim} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+To simulate a two-class $n \times d$  single-cell RNA matrix, where $n$ is the number of cells and $d$ is the number of genes, we define an $n \times d$ binary structure matrix $\mathbf{S}$ with entries $s_{ij}$ and an $n \times d$ probability matrix $P$. 
+
+The entries of the probability matrix are
+\begin{align}
+  p_{ij} = Pr(X_{ij} = s_{ij}),
+\end{align}
+where $Pr$ is the probability function. 
+The simulated matrix $\mathbf{X}$ is binary, with entries
+\begin{align}
+  x_{ij} &= 
+  \begin{cases}
+   1 &  \text{ if gene $j$ is expressed in cell $i$} \\
+   0 & \text{ otherwise.}
+  \end{cases}
+\end{align}
+Let each entry be the observation of a random vector $X_{ij} \sim Bernoulli(\pi_{ij})$, and let 
+\begin{align}
+  \pi_{ij} = (1 -  p_{ij}) + (2  p_{ij} - 1) s_{ij}.
+\end{align}
+
+\subsection{The structure matrix} \label{sec:Struct} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The structure matrix $\mathbf{S}$ represents a simplified/idealised underlying structure of the cell-gene interaction according to the following assumptions:\\
+(1) Each cell belongs to one of the two classes, class 1 or class 2.\\
+(2) Each gene is expressed in either \\
+\indent (a) all cells in both classes \\
+\indent (b) all cells in class 1,  none of the cells in class 2 \\
+ \indent (c) all cells in class 2, none of the cells in class 1 \\
+ \indent (d) none of the cells.
+
+This can be expressed as follows:
+Let $\mathbb{Z}_n$ and $\mathbb{Z}_d$ be the sets of integers from $1$ to $n$ and $1$ to $d$, respectively. 
+Let $\mathbb{C}_1 \subset \mathbb{Z}_n$ be the set of cells in class 1.
+Then $\mathbb{C}_2 = \mathbb{C}_{12} - \mathbb{C}_1$, where $\mathbb{C}_{12} = \mathbb{Z}_n$ (assumption 1) and $-$ is the set difference operator. 
+Let $\mathbb{G}_{12} \subset \mathbb{Z}_d$ be the genes expressed for both classes, let $\mathbb{G}_{1} \subset \mathbb{Z}_d$ be the genes expressed for class 1, and let $\mathbb{G}_{2} \subset \mathbb{Z}_d$ be the genes expressed for class 2. 
+Then $\mathbb{G}_{12} \cap \mathbb{G}_{1} = \emptyset$,  $\mathbb{G}_{12} \cap \mathbb{G}_{2} = \emptyset$,  $\mathbb{G}_{1} \cap \mathbb{G}_{2} = \emptyset$ (assumption 2).
+
+Let $\mathbb{A}$ be a set of positive integers, and let $\mathbf{1}_{\mathbb{A}}$ be a column vector where each entry $i$
+\begin{align}
+  \begin{cases}
+   1 &  \text{ if } i \in \mathbb{A} \\
+   0 & \text{ otherwise.}
+  \end{cases}
+\end{align}
+Then we can write the structure matrix $\mathbf{S}$ as 
+\begin{align}
+  \mathbf{S} = \mathbf{S}_{12}+ \mathbf{S}_1 + \mathbf{S}_2 = \mathbf{1}_{\mathbb{C}_{12}}\mathbf{1}^{\prime}_{\mathbb{G}_{12}} +  \mathbf{1}_{\mathbb{C}_{1}}\mathbf{1}^{\prime}_{\mathbb{G}_{1}} +  \mathbf{1}_{\mathbb{C}_{2}}\mathbf{1}^{\prime}_{\mathbb{G}_{2}},
+\end{align}
+where $\prime$ denotes the transpose, and $+$ is the boolean $or$ operator. 
+Equivalently
+\begin{align}
+  \mathbf{S} = [\mathbf{1}_{\mathbb{C}_{1}} \mathbf{1}_{\mathbb{C}_{2}}] [\mathbf{1}^{\prime}_{\mathbb{G}_{12} \cup {\mathbb{G}_{1}}}; \mathbf{1}^{\prime}_{\mathbb{G}_{12} \cup {\mathbb{G}_{2}}}],
+\end{align}
+where $[\mathbf{a} \mathbf{b}]$ is the concatenation of columns $\mathbf{a} \mathbf{b}$ into a matrix, and $[\mathbf{a}\prime ; \mathbf{b}\prime]$ is the concatenation of rows into a matrix. 
+
+\subsection{The probability matrix} \label{sec:Prob} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Three simplified cases. 
+
+{\bf No cell effect, no gene effect:} $p_{ij} = p$.
+The probability is the same for all cells and genes. 
+
+{\bf Class cell effect, no gene effect:} $ p_{class 1},\,  p_{class 2}$
+\begin{align}
+  p_{ij} =
+  \begin{cases}
+    p_{class 1} \text{ if } i \in \mathbb{C}_{1} \\
+    p_{class 2} \text{ if } i \in \mathbb{C}_{2}
+  \end{cases}
+\end{align}
+
+{\bf Gene effect, no interaction:} $ p_{gene 12}, \, p_{gene 1}, \, p_{gene 2}$
+\begin{align}
+  p_{ij} =
+  \begin{cases}
+    p_{gene 12} \text{ if } j \in \mathbb{G}_{12} \\
+    p_{gene 1} \text{ if } i \in \mathbb{G}_{1} \\
+    p_{gene 2} \text{ if } i \in \mathbb{G}_{2} \\
+    p_{gene 0} \text{ otherwise} 
+  \end{cases}
+\end{align}
+
+{\bf Cell and gene effect, multiplicative:} 
+\begin{align}
+  p_{ij} =  p_{cell A} \cdot p_{gene B} \text{ if } i  \in \mathbb{C}_{A}, j \in \mathbb{G}_{B}
+\end{align}
+
+{\bf Cell and gene effect:} 
+\begin{align}
+  p_{ij} =  g(p_{cell A}, p_{gene B}) \text{ if } i  \in \mathbb{C}_{A}, j \in \mathbb{G}_{B},
+\end{align}
+where $g(p_{cell},p_{gene})$ is some function. 
+
+
+\subsection{Demonstration} \label{sec:Demo} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{figure}
+  \includegraphics[width = \textwidth]{S.jpg}
+  \caption{The structure matrix}
+\end{figure}
+
+\begin{figure}
+  \subfloat{ 
+  \includegraphics[width = 0.5 \textwidth]{Pi1.jpg}}
+   \subfloat{ 
+  \includegraphics[width = 0.5 \textwidth]{X1.jpg}}
+  \caption{No cell effect, no gene effect}
+\end{figure}
+
+\begin{figure}
+  \subfloat{ 
+  \includegraphics[width = 0.5 \textwidth]{PiCell.jpg}}
+   \subfloat{ 
+  \includegraphics[width = 0.5 \textwidth]{XCell.jpg}}
+  \caption{Class cell effect, no gene effect}
+\end{figure}
+
+\begin{figure}
+  \subfloat{ 
+  \includegraphics[width = 0.5 \textwidth]{PiGene.jpg}}
+   \subfloat{ 
+  \includegraphics[width = 0.5 \textwidth]{XGene.jpg}}
+  \caption{Gene effect, no interaction}
+\end{figure}
+
+\begin{figure}
+  \subfloat{ 
+  \includegraphics[width = 0.5 \textwidth]{PiCellGene.jpg}}
+   \subfloat{ 
+  \includegraphics[width = 0.5 \textwidth]{XCellGene.jpg}}
+  \caption{ Cell and gene effect, multiplicative}
+\end{figure}
+
+See matlab functions cell\_gene\_sim.m and simulation\_parameters.m
+
+
+\end{document}
