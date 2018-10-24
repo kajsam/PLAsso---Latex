@@ -1,0 +1,532 @@
+\documentclass[12pt]{article}
+
+% Packages
+\usepackage{amssymb}
+\usepackage{amsmath} % align
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{subfig}
+\usepackage{multirow}
+\usepackage{centernot}
+\usepackage{setspace}
+
+\usepackage{tikz}
+
+
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+
+\begin{document}
+
+\newcommand{\comm}[1]{}
+
+\newcommand{\mb}{\mathbf}
+
+\section{Bernoulli parameter estimation} \label{sec:BerParamEst} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Background} 
+
+\subsubsection*{Reading list} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Non-negative matrix factorization \cite{Lee1999Learning}. 
+Divergences for exponential families \cite{Banerjee2005Clustering}.
+Linear regression  \cite[ch 12.3]{Casella2002Statistical}.  
+Association mining \cite{Agrawal1993Mining}.
+Boolean matrix factorization \cite{Miettinen2008Discrete}
+
+\subsubsection*{Assumptions on $\mathbf{X}$} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+$\mathbf{X}_{n \times d}$ is the observed binary matrix with entries
+\begin{align}
+  x_{ij} &= 
+  \begin{cases}
+   1 &  \text{ if gene $j$ is expressed in cell $i$} \\
+   0 & \text{ otherwise.}
+  \end{cases}
+\end{align}
+Assume that the entries $x_{ij}$ are observations from $X_{ij}$  independent (but not identical) Bernoulli$(\pi_{ij})$ variables, where $\pi_{ij}$ is the probability of the $j$th gene in the $i$th cell being expressed. 
+Assume that there exists an underlying binary structure matrix $\mathbf{S}_{n \times d}$, and define the relationship between  $\mathbf{X}$ and  $\mathbf{S}$ as follows
+
+\begin{align} \label{eg: Xassumptions}
+   \pi_{ij} &= (1 -  p) + (2  p - 1) s_{ij} + p_{cell, i} + p_{gene,j}
+\end{align}
+where  $s_{ij}$ are the entries of $\mathbf{S}$, $p$ is the probability of $X_{ij} = 1 | s_{ij} = 1$ if there were no cell or gene effect. 
+
+\subsubsection*{Assumptions on $\pi_{ij}$} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Assume that $\pi_{ij}$ is a function of $s_{ij}$ as follows
+\begin{align} \label{eq:Link}
+  & \pi_{ij}(s_{ij}) = \frac{e^{\alpha_{ij} + \beta_{ij} s_{ij}}}{1 + e^{\alpha_{ij} + \beta_{ij} s_{ij}}}, \\
+ &  0 < \pi_{ij} < 1, 
+  \text{ which is equivalent to } \nonumber \\
+   & \log \frac{\pi_{ij}(s)}{1-\pi_{ij}(s)}  = \alpha_{ij} + \beta_{ij} s_{ij},  \nonumber
+\end{align}
+
+The relationships between $p$, $ p_{cell, i}$, $ p_{gene,j}$ and $\pi_{ij}$ are as follows
+\begin{align}
+  \pi_{ij}(0) & = (1 - p) + p_{cell, i} + p_{gene,j} \\
+  \pi_{ij}(1) & = p + p_{cell, i} + p_{gene,j} \label{eq:CellEffect}\\
+   \pi_{ij}(1) -  \pi_{ij}(0) & = 2 p - 1 \\
+  p&  = \big ( \pi_{ij}(1) -  \pi_{ij}(0) + 1 \big ) / 2 \label{eq:Effect}
+\end{align}
+
+\subsubsection*{Problem definition} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+We want to find the underlying structure matrix $\mathbf{S}$ because we believe that this will give us information about how the cells and the genes in $\mathbf{X}$ cluster. 
+
+Let $\mathbf{A}$ be a binary approximation of $\mathbf{S}$.
+Finding  $\mathbf{S}$ is done by alternating between the two following steps \\
+{\bf Step 1:} Estimate $\alpha_{ij}$ and $\beta_{ij}$, given $\mathbf{A}$. \\
+{\bf Step 2:} Find a low rank approximation matrix $\mathbf{A}$ to $\mathbf{S}$, given the estimates of $\alpha_{ij}$ and $\beta_{ij}$. \\
+We do this by replacing $\mathbf{S}$ by $\mathbf{A}$ to estimate $\alpha_{ij}$ and $\beta_{ij}$, and then use the estimates to find a new approximation $\mathbf{A}$, alternating between step 1 and step 2 until convergence or exhaustion. 
+To avoid tendonitis, we will use $\alpha_{ij}$ and $\beta_{ij}$ for the estimated parameters, and $\mathbf{A}$ will denote any version of the approximation matrix, unless it is a necessity to distinguish between them. 
+
+This is the EM-algorithm, see later subsection.
+
+\subsection{Estimation of $\alpha_{ij}$ and $\beta_{ij}$, given $\mathbf{A}$} \label{sec:EstimatingAlphaBeta}%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+$\alpha$ and $\beta$ are found by solving the maximum log likelihhood equations
+\begin{align} \label{eq:AlphaBeta}
+  \frac{\partial}{\partial \alpha} \log L(\alpha, \beta|\mathbf{X}) &= \sum \big (x_{i j} - \frac{e^{\alpha_{ij} + \beta_{ij} a_{ij}}}{1 + e^{\alpha_{ij} + \beta_{ij} a_{ij}}} \big) = 0 \\
+  \frac{\partial}{\partial \beta} \log L(\alpha, \beta|\mathbf{X}) &= \sum \big (x_{i j} - \frac{e^{\alpha_{ij} + \beta_{ij} a_{ij}}}{1 + e^{\alpha_{ij} + \beta_{ij} a_{ij}}} \big )a_{ij} = 0. \nonumber
+\end{align}
+
+The estimation of $\alpha_{ij}$ and $\beta_{ij}$ is only possible if there are terms in the sums.
+The most intuitive initial approach is to estimate the cell-dependent part  $\alpha_{i}$ and $\beta_{i}$, assuming independence over the genes, such that we get $n$ regression equations summing over all genes $j$
+\begin{align}
+  \frac{\partial}{\partial \alpha_i} \log L(\alpha_i, \beta_i|\mathbf{X}) &= \sum_j \big (x_{i j} - \frac{e^{\alpha_{i} + \beta_{i} a_{ij}}}{1 + e^{\alpha_{i} + \beta_{i} a_{ij}}} \big) = 0  \label{eq:Alpha_cell} \\
+  \frac{\partial}{\partial \beta_i} \log L(\alpha_i, \beta_i|\mathbf{X}) &= \sum_j \big (x_{i j} - \frac{e^{\alpha_{i} + \beta_{i} a_{ij}}}{1 + e^{\alpha_{i} + \beta_{i} a_{ij}}} \big )a_{ij} = 0,  \label{eq:Beta_cell}
+\end{align}
+or equivalently for the genes
+\begin{align} \label{eq:AlphaBeta_gene}
+  \frac{\partial}{\partial \alpha_j} \log L(\alpha_j, \beta_j|\mathbf{X}) &= \sum_i \big (x_{i j} - \frac{e^{\alpha_{j} + \beta_{j} a_{ij}}}{1 + e^{\alpha_{j} + \beta_{j} a_{ij}}} \big) = 0 \\
+  \frac{\partial}{\partial \beta_j} \log L(\alpha_j, \beta_j|\mathbf{X}) &= \sum_i \big (x_{i j} - \frac{e^{\alpha_{j} + \beta_{j} a_{ij}}}{1 + e^{\alpha_{j} + \beta_{j} a_{ij}}} \big )a_{ij} = 0. \nonumber
+\end{align}
+
+In the remaining part of this document, I will present the solution for the cell-dependent parameters. 
+The calculation of the gene dependent parameters are equivalent. 
+The combination of cell and gene will be addressed later. 
+
+In Eq.~\ref{eq:Alpha_cell} and \ref{eq:Beta_cell} there are only four possible combinations of $(x_{ij},a_{ij})$. Let $n_{01}$ be shorthand for the number of elements for which $x_{ij} = 0$ and $a_{ij} = 1$, and let $n_{00}$, $n_{10}$ and $n_{11}$ be defined correspondingly.
+We then have for Eq.~\ref{eq:Alpha_cell}
+\begin{align} \label{eq:Alpha01}
+ &  \sum_{j} \big (x_{ij} -\pi_i(a_{ij}) \big ) = \sum_{j} \big (x_{ij} -  \frac{e^{\alpha_{i} + \beta_{i} a_{ij}}}{1 + e^{\alpha_{i} + \beta_{i} a_{ji}}} \big ) = \nonumber \\
+& - n_{00} \frac{e^{\alpha_{i}}}{1 + e^{\alpha_{i}}} + n_{1,0} \big (1 -  \frac{e^{\alpha_{i}}}{1 + e^{\alpha_{i}}} \big ) - n_{0,1}\frac{e^{\alpha_{i} + \beta_{i}}}{1 + e^{\alpha_{i} + \beta_{i}}} + n_{11}\big  (1 - \frac{e^{\alpha_{i} + \beta_{i}}}{1 + e^{\alpha_{i} + \beta_{i}}}\big ) \nonumber \\
+& = n_{10} + n_{11} - \big ( n_{00} + n_{10} \big ) \frac{e^{\alpha_{i}}}{1 + e^{\alpha_{i}}} - \big ( n_{0,1} - n_{1,1} \big ) \frac{e^{\alpha_{i} + \beta_{i}}}{1 + e^{\alpha_{i} + \beta_{i}}} = 0  
+\end{align}
+and for  Eq.~\ref{eq:Beta_cell}
+\begin{align}  \label{eq:Beta01}
+ & \sum_{j}\big  (x_{ij} - \pi_i(a_{ij}) \big )a_{ij} \nonumber \\
+= & -  n_{01} \frac{e^{\alpha_{i} + \beta_{i}}}{1 + e^{\alpha_{i} + \beta_{i}}} + n_{1,1} \big (1 -  \frac{e^{\alpha_{i} + \beta_{i}}}{1 + e^{\alpha_{i} + \beta_{i}}} \big ) 
+ =  n_{11} - (n_{01} + n_{11}) \frac{e^{\alpha_{i} + \beta_{i}}}{1 + e^{\alpha_{i} + \beta_{i}}} = 0 \nonumber \\
+\Rightarrow & \frac{e^{\alpha_{i} + \beta_{i}}}{1 + e^{\alpha_{i} + \beta_{i}}} = \frac{n_{11}}{n_{01} + n_{11}}
+\end{align}
+If we plug Eq.~\ref{eq:Beta01} into Eq.~\ref{eq:Alpha01} we get
+\begin{align} \label{eq:AnalyticalAlpha}
+&   n_{10} + n_{11} - \big ( n_{00} + n_{10} \big ) \frac{e^{\alpha_{i}}}{1 + e^{\alpha_{i}}} - \big ( n_{01} - n_{11} \big ) \frac{n_{11}}{n_{01} + n_{11}} = 0 \nonumber\\
+\Rightarrow & \frac{e^{\alpha_{i}}}{1 + e^{\alpha_{i}}} = \frac{n_{10}}{n_{00} + n_{10}} \Rightarrow \alpha_i = \log \frac{n_{10}}{n_{00}},
+\end{align}
+which is in accordance with $\alpha$ being the log-odds of succes at $a_{ij} = 0$.
+And we have 
+\begin{align} \label{eq:AnalyticalBeta}
+&  \beta_i =  \log \frac{n_{11}}{n_{01}} - \log \frac{n_{10}}{n_{00}},
+\end{align} 
+which is in accordance with $\beta$ being the change in the log-odds of success corresponding to a one-unit increase in $a_{ij}$.
+
+The solution to Eq.~\ref{eq:AnalyticalAlpha} and \ref{eq:AnalyticalBeta} can now be plugged into the link function (Eq.~\ref{eq:Link}) to find
+\begin{align*}
+  \pi_{i}(a_{ij}) = \frac{e^{\alpha_{i} + \beta_{i} a_{ij}}}{1 + e^{\alpha_{i} + \beta_{i} a_{ij}}}
+\end{align*}
+and further into Eq.~\ref{eq:Effect} to find the overall uncertainty parameter
+\begin{align*}
+ p&  = \big ( \pi_{i}(1) -  \pi_{i}(0) + 1 \big ) / 2,
+\end{align*}
+and into Eq.~\ref{eq:CellEffect} assuming no gene effect
+\begin{align*}
+    p_{cell, i} = \pi_{i}(1) - p =  \big ( \pi_{i}(1) +  \pi_{i}(0) - 1 \big ) / 2.
+\end{align*}
+
+
+\subsection{Optimisation algorithm} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+{\bf Step 2:} We will use the maximum likelihood to find $\mathbf{A}$. 
+Recall that $P(X = x|\pi) = \pi^x (1 - \pi)^{(1-x)}$.
+We want to maximize the likelihood function:
+\begin{align}
+  L \big (\pi(a_{ij})|\mathbf{X} \big ) =\prod  \big ( \pi(a_{ij}) \big )^{x_{ij}} \big ( 1 - \pi(a_{ij}) \big) ^{1 - x_{ij}},
+\end{align}
+which is equivalent to maximizing the log likelihood
+\begin{align}
+  \log L \big (\pi(a_{ij})|\mathbf{X} \big ) =\sum x_{ij} \log  \pi(a_{ij})+ \sum \big (1 - x_{ij} \big)\log  \big ( 1 - \pi(a_{ij}) \big).
+\end{align}
+This is done by using $\alpha_i$ and $\beta_i$, and then maximize
+\begin{align}
+  \log L \big (a_{ij}|\mathbf{X}, \alpha_i, \beta_i \big ) & =\sum x_{ij} \log  \pi(a_{ij})+ \sum \big (1 - x_{ij} \big)\log  \big ( 1 - \pi(a_{ij}) \big) \\
+  & =\sum \log \big (1 - \pi(a_{ij}) \big )+ \sum  x_{ij}\log  \big ( \frac{\pi(a_{ij})}{1 - \pi(a_{ij})} \big) \\
+   & = -\sum \log \big (1 + e^{\alpha_{i} + \beta_{i} a_{ij}} \big )+ \sum  x_{ij}(\alpha_{i} + \beta_{i} a_{ij}) 
+\end{align}
+The partial derivatives are 
+\begin{align}
+&  \frac{\partial}{\partial a_{ij}} \log L(a_{ij}|\mathbf{X}, \alpha_i, \beta_i) = \frac{\partial}{\partial a_{ij}} -\sum \log \big (1 + e^{\alpha_{i} + \beta_{i} a_{ij}} \big )+ \sum  x_{ij}(\alpha_{i} + \beta_{i} a_{ij}) \nonumber  \\
+&  = - \sum\frac{e^{\alpha_{i} + \beta_{i} a_{ij}}}{1 + e^{\alpha_{i} + \beta_{i} a_{ij}}} \beta_i + \sum x_{ij} \beta_i \Rightarrow \sum \{ x_{ij} - \pi_i(a_{ij}) \} = 0,
+\end{align}
+and we need to sum over something to have an estimate. 
+The blocks.
+
+\subsubsection*{The terms of the sum in a column} \label{sec:TermsCol} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The objective is to choose the best candidate column from the association matrix $\mathbf{Z}$ (more on that later). 
+Each candidate column is compared to all the columns in $\mathbf{X}$, and a corresponding row vector $\mathbf{h}$ is constructed based on the log likelihood. 
+Let $\mathbf{z}_\ell$ be a condidate column.
+For each column $\mathbf{x}_j$ of $\mathbf{X}$, the log likelihood can be calculated as follows:
+
+There are four possible combinations of $(x_{ij},z_{i\ell})$. Let $v_{01}$ be shorthand for the set of elements for which $x_{ij} = 0$ and $z_{i\ell} = 1$, and let $v_{00}$, $v_{10}$ and $v_{11}$ be defined correspondingly. 
+For each column $j$ we have
+\begin{align}
+ & \log L \big (\mathbf{x}_j|\mathbf{z}_\ell, \alpha_i, \beta_i \big )  \\
+  = & -\sum_{i \in v_{00}} \log(1 + e^{\alpha_i}) - \sum_{i \in v_{01}} \log (1 + e^{\alpha_i + \beta_i}) \nonumber \\
+&  - \sum_{i \in v_{10}} \log (1 + e^{\alpha_i}) + \sum_{i \in v_{10}} \alpha_i - \sum_{i \in v_{11}} \log (1 + e^{\alpha_i + \beta_i}) + \sum_{i \in v_{11}} (\alpha_i + \beta_i) \nonumber \\
+ = &  -\sum_{i \in \{v_{00}, v_{10}\}} \log(1 + e^{\alpha_i}) - \sum_{i \in \{ v_{01}, v_{11}\}} \log (1 + e^{\alpha_i + \beta_i}) +  \sum_{i \in \{ v_{10}, v_{11}\}} \alpha_i + \sum_{i \in v_{11}} (\alpha_i + \beta_i) \nonumber
+\end{align}
+We are interested in how this likelihood compares to a different candidate column $\mathbf{z}_{\ell^\prime}$, which means that $\mathbf{x}_j$ will be the same in the comparison. 
+The set $i \in \{v_{00}, v_{10}\}$ corresponds to $\{i: \mathbf{z}_\ell = 0\}$; $i \in \{ v_{01}, v_{11}\}$ corresponds to $\{i: \mathbf{z}_\ell = 1\}$; $i \in \{ v_{10}, v_{11}\}$ corresponds to $\{i: \mathbf{x}_j = 1\}$; and $i \in v_{11}$ corresponds to $\{ i : \mathbf{x}_j = 1, \, \mathbf{z}_\ell = 1\}$.
+The expressions $\log(1 + e^{\alpha_i})$ and $\log (1 + e^{\alpha_i + \beta_i})$ can be calculated cleverly from Eq.~\ref{eq:AnalyticalAlpha} and \ref{eq:AnalyticalBeta}.
+
+\begin{align}
+  \log(1 + e^{\alpha_i}) = \log(\frac{n_{00}}{n_{00}} +  \frac{n_{10}}{n_{00}}) = \log(\frac{n_{00}+n_{10}}{n_{00}}),
+\end{align}
+\begin{align} \label{eq:Log1alphabeta}
+  \log(1 + e^{\alpha_i + \beta_i}) = \log(\frac{n_{01}}{n_{01}} +  \frac{n_{11}}{n_{01}}) = \log(\frac{n_{01}+n_{11}}{n_{01}}).
+\end{align}
+Note that the $n_{xx}$ and the $v_{xx}$ does not have the same origin.
+
+\subsection{Binary Matrix Factorization} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The binary matrix factorization that we will use is a variant of the non-negative matrix factorization with boolean algebra. 
+Let $\mathbf{A} = \mathbf{WH}$ be the rank $K$ factorization of the binary matrix $\mathbf{X}$.
+Require that $\mathbf{W}$ and $\mathbf{H}$ are binary, with dimensions $n \times K$ and $K \times d$, respectively. 
+The matrix multiplication is done under boolean algebra, in particular, $1 + 1 = 1$, and we have that
+\begin{align}
+  \mathbf{A} = \mathbf{WH} = \sum_{k = 1}^K \mathbf{w}_k \mathbf{h}_k,
+\end{align}
+where $\mathbf{w}_k$ is the $k$th column vector of $\mathbf{W}$, and $\mathbf{h}_k$ is the $k$th row vector of $\mathbf{H}$.
+Keep in mind that the objective is not to approximate $\mathbf{X}$, but to find a structure matrix that maximises the likelihood:
+\begin{align}
+  L(\mathbf{X}| \Pi(\mathbf{A})),
+\end{align}
+where $\Pi(\mathbf{A})$ has entries $\pi_{ij}(a_{ij})$, $\pi_{ij}$ is given by Eq.~\ref{eq:Link}, and $\alpha_{ij}$ and $\beta_{ij}$ are the estimates from {\bf Step 1}.
+
+Finding the optimimal matrix $\mathbf{A}$ is an NP-hard and it cannot be approximated unless P=NP\cite{Miettinen2008Discrete}.
+The method proposed in \cite{Miettinen2008Discrete} consists of constructing a set of columns that are candidates for $\mathbf{w}_k$, and for each candidate column construct a corresponding candidate row, and finally choose the column-row pair according to their own objective function named {\it cover}. 
+
+The main outline of the following proposed method is: \\
+(i) Construct candidate columns. \\
+(ii) Construct candidate rows. \\
+(iii) Choose column vectors $\mathbf{w}$, and update corresponding row vectors $\mathbf{h}$. 
+
+\subsubsection{Input} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+ $\mathbf{X}$: Binary matrix of size $n \times d$. Let $n$ be the number of cells, and $d$ be the number of genes.\\
+$K$: The rank of the output matrix. \\
+$K_{init}$: The rank of the inital approximation matrix.
+
+\subsubsection{Initiation round} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+We will initiate the EM-algorithm by creating a binary approximation matrix, implicitly assuming $\pi_{ij} = \pi$, i.e. no cell or gene effect.
+
+\subsubsection*{Candidate columns by association mining} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+In association mining\cite{Agrawal1993Mining}, a set of rules is constructed for binary data, with the objective of predicting the presens of one feature given the presens of a subset of the other features. 
+In the particular case of constructing candidate columns for matrix factorization, we calculate the conditional probability of the genes in cell $\ell$ being expressed, given that the corresponding genes in cell $i$ are expressed. 
+Bayes' rule gives
+\begin{align}
+  P(X_{\ell,j}|X_{i,j}) = \frac{P(X_{\ell,j} \cap X_{i,j})}{P(X_{\ell,j})}, 
+\end{align}
+Where $X_{i,j}$ is the event $X_{i,j} = 1$.
+By assuming independence over the genes, we can estimate this by the sample mean 
+\begin{align}
+  E [ P(X_{\ell}| X_{i})] =  \frac{\sum_{j = 1}^ d (X_{\ell j}, X_{i j})}{\sum_{j = 1}^ d X_{i j}}, \, \, \sum_{j = 1}^ d X_{i j} > 0
+\end{align}
+
+We construct $n$ association columns $\mathbf{z}_i$ with entries
+\begin{align}
+  z_{\ell, i} = \frac{\sum_{j = 1}^ d (X_{\ell j}, X_{i j})}{\sum_{j = 1}^ d X_{i j}}
+\end{align}
+and stack them into an association matrix $\mathbf{Z}$.
+To create candidate columns, $\mathbf{w}^{cand}_{ i}$,  from the association matrix, a binarisation is required, which will be done by thresholding such that
+\begin{align}
+  \mathbf{w}^{cand}_{\ell i}&  = 
+  \begin{cases}
+   1 &  z_{\ell i}  > \tau_\ell \\
+   0 & \text{ otherwise.}
+  \end{cases}
+\end{align}
+The threshold $\tau_\ell$ is the Otsu threshold \cite{Otsu1979Threshold} calculated for each row in $\mathbf{Z}$.
+
+\subsubsection*{Rank $K$ approximation} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+For each $k$, $k = 1, \ldots, K$, a row is created for each candidate column, and the best column-row pair is selected.
+The increase/decrease of equal/unequal entries between $\mathbf{w}^{cand}_{\ell}$ and  $\mathbf{x}_j$, and between $\mathbf{w}^{cand}_{\ell} \mathbf{h}^{cand}_{\ell}$ and $\mathbf{X}$ compared to $\mathbf{A}^{k-1}$ is used to construct the candidate rows and select the best column-row pair. 
+$\mathbf{A}^{k-1}$ is the $k-1$ approximation, and $\mathbf{A}^{0}$ a zero matrix, $\mathbf{a}^{k-1}_j$ is the $j$th column of $\mathbf{A}^{k-1}$.
+All algebra is boolean. 
+
+\subsubsection*{Corresponding rows by number of equal entries} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Each candidate column is compared to column $j$ of $\mathbf{X}$,  $\mathbf{x}_j$.
+The $j$th entry of candidate row $\mathbf{h}^{cand}_{\ell}$ corresponding to the candidate column $\mathbf{w}^{cand}_{\ell}$ is $1$ if $\mathbf{w}^{cand}_{\ell}$ had the most equal entries with  $\mathbf{x}_j $ among all candidate columns. 
+\begin{align} \label{eq:Rows}
+  \mathbf{h}^{cand}_{\ell j} & =
+   \begin{cases}
+   1 & | (\mathbf{w}^{cand}_{\ell} + \mathbf{a}^{k-1}_j = \mathbf{x}_j)| = \text{ max } |( \mathbf{w}^{cand}_{\ell^\prime}+ \mathbf{a}^{k-1}_j = \mathbf{x}_j)| , \, \, \,  \forall \ell^\prime \\
+   0 & \text{ otherwise.}
+  \end{cases}
+\end{align}
+
+\subsubsection*{Criterion for selection of the best column-row pair} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The best column-row pair is chosen by 
+\begin{align}
+ \argmin_\ell |\mathbf{w}^{cand}_{\ell} \mathbf{h}^{cand}_{\ell} + \mathbf{a}^{k-1}\, \,  xor \, \,   \mathbf{X}|,
+\end{align}
+where $|\mathbf{Y}| = \sum_{j i} y_{ji}$, and $xor$ is the exclusive or.
+
+When $K$ column-row pairs are chosen, the row vectors are updated according to Eq.~\ref{eq:Rows}, but now with only the $K$ chosen columns, not all candidates. 
+
+\subsubsection{EM-algorithm} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection*{Estimation of $\alpha_{ij}$ and $\beta_{ij}$, given $\mathbf{A}$}
+This is done as described in Section~\ref{sec:EstimatingAlphaBeta}. 
+
+\subsubsection*{Candidate columns by likelihood} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The candidate columns will be created by the likelihood of observing ${x}_{\ell j}$ given $\pi_{\ell j}(a_{ij})$ for the entries $\{j : a_{ij} = 1\}$.
+Let $v_{01}$ denote the set where  ${x}_{\ell j} = 0$ and $ a_{ij} = 1$,  and let $v_{11}$ denote the set where ${x}_{\ell j} = 1$ and $ a_{ij} = 1$.
+\begin{align}
+  \log L(x_{\ell j}, \{j : a_{ij} = 1\} | \pi_\ell) = \sum_{j \in v_{11}} \log \pi_{\ell j}(1) + \sum_{j \in v_{01}} \log \big ( 1 - \pi_{\ell j}(1) \big ).
+\end{align} 
+Note that from Eq.~\ref{eq:Link} we have that 
+\begin{align*}
+ \pi_{ij}(1) = \frac{e^{\alpha_{ij} + \beta_{ij}}}{1 + e^{\alpha_{ij} + \beta_{ij}}},
+\end{align*}
+so we get from Eq.~\ref{eq:Log1alphabeta}, and Eq.~\ref{eq:AnalyticalAlpha} and \ref{eq:AnalyticalBeta}
+%\begin{align}
+% \log L(x_{\ell j}, j \in v_{\cdot 1} | \pi_\ell) = \sum_{j \in v_{11}}  \log \frac{n_{11}}{n_{01}} - \sum_{j \in v_{ \cdot 1}} \log(\frac{n_{01}+n_{11}}{n_{01}})
+%\end{align}
+%Each entry in $\log \frac{n_{11}}{n_{01}}$ is positive if $n_{11} > n_{01}$, which makes sense. 
+%All entries in $\log(\frac{n_{01}+n_{11}}{n_{01}}$ are positive, and zero only if $n_{11} = 0$. 
+%I have to think about that for a while.
+%Remember that $n_{\cdot \cdot}$ and $v_{\cdot \cdot}$ are not related.
+%% Wait, this is the same as
+
+\begin{align}
+ \log L(x_{\ell j}, j \in v_{\cdot 1} | \pi_\ell) = \sum_{j \in v_{11}}  \log \frac{n_{11}}{n_{01}+ n_{11}} + \sum_{j \in v_{0 1}} \log \frac{n_{01}}{n_{01}+ n_{11}}
+\end{align}
+
+
+\subsubsection*{The Asso algorithm} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Binary matrix factorization: Given the binary matrix $\mathbf{X}_{n \times d}$, find a  rank $K$ binary approximation matrix, $\mathbf{W}_{n \times K} \mathbf{H}_{K \times d}$ by minimizing 
+\begin{align}
+  |\mathbf{X}\, xor\, \mathbf{W} \mathbf{H}|,
+\end{align}
+where $|\mathbf{Y}| = \sum_{j i} y_{ji}$, $xor$ is the exclusive or, and $\mathbf{WH}$ is the Boolean matrix product where $1+1 = 1$.
+The $K$ columns of $\mathbf{W}$ are called basis columns. 
+
+The Asso algorithm \cite{Miettinen2008Discrete} \cite{Miettinen2014MDL4BMF} has an heuristic approach based on the associations in the input matrix $\mathbf{X}$. 
+A binary association matrix $\mathbf{Z}_{n \times n}$ is constructed from the rows of $\mathbf{X}$ as follows
+\begin{align} \label{eq:Association}
+  z_{\ell i} =
+   \begin{cases}
+      1 & \text{if } \frac{<\mathbf{x}_{\ell},\mathbf{x}_i>}{<\mathbf{x}_{i},\mathbf{x}_{i}>} \geq \tau \\
+      0 \, &otherwise,
+    \end{cases}
+\end{align}
+where $<,>$ is the inner product, $\mathbf{x}_i,\mathbf{x}_{\ell}$ are rows of $\mathbf{X}$, and $\tau$ is user specified.
+The threshold $\tau$ ``controls the level of confidence required to include an attribute to the basis vector candidate'' (Miettinen, 2008). 
+The algorithm for constructing $\mathbf{WH}$ considers the columns of $\mathbf{Z}$ as candidate columns for $\mathbf{W}$, and then the rows of $\mathbf{H}$ are arbitrary, maximising the gain function {\it cover}
+\begin{align}
+   | \{ (i,j) : x_{ij} = 1, (WH)_{ij} = 1 \}| - | \{ (i,j) : x_{ij} = 0, (WH)_{ij} = 1\}|
+\end{align}
+which counts the number of $1$s in $\mathbf{X}$ which are also $1$ in $\mathbf{WH}$, and then subtracts the number of $0$s in $\mathbf{X}$ which are $1$ in $\mathbf{WH}$.
+This is done in a greedy fashion, by first choosing the best column from $\mathbf{Z}$ as the first column of $\mathbf{W}$ and the corresponding first row of $\mathbf{H}$.
+Then, from the remaining columns of  $\mathbf{Z}$, the best column is chosen, such that the rank $2$ $\mathbf{WH}$ maximises the gain. 
+And so on. 
+
+\textbf{Details on how $\mathbf{h}$ is constructed:} \\
+ Let $\mathbf{A}^{k-1}$ be the rank $k-1$ BMF approximation, and let $\mathbf{A}^{0}$ be a matrix of all $0$s. 
+Let $\mathbf{z}$ be a candidate column, and let $\mathbf{a}_i$ be the columns of  $\mathbf{A}^{k-1}$.
+For each entry where $\mathbf{a}_i = 0$, calculate the cover:\\
+\begin{verbatim}
+for each column x_i of X do: 
+    cover = 0 
+    for each entry j do:
+        if a_i(j) = 0 AND x_i(j) = 1 AND z(j) = 1 do
+            cover = cover + 1 
+        end 
+        if a_i(j) = 0 AND x_i(j) = 0 AND z(j) = 1 do
+            cover = cover - 1 
+        end
+    end
+end 
+
+if cover > 0
+    h(i) = 1
+else
+    h(i) = 0
+end
+\end{verbatim}
+Among all the different candidate columns with corresponding $\mathbf{h}$, choose the one that maximizes the cover gain for $\mathbf{A}^{k}$ compared to $\mathbf{A}^{k-1}$.
+This is extremely greedy.
+
+\textbf{Suggested modification:} \\
+Construct $\mathbf{h}$ in the same manner, but add an uncover gain criterion. \\
+\begin{verbatim}
+for each column x_i of X do: 
+    cover = 0 
+    uncover = 0;
+    for each entry j do:
+        if a_i(j) = 0 AND x_i(j) = 1 AND z(j) = 1 do
+            cover = cover + 1 
+        end
+        if a_i(j) = 0 AND x_i(j) = 0 AND z(j) = 0 do
+            uncover = uncover + 1 
+        end  
+        if a_i(j) = 0 AND x_i(j) = 0 AND z(j) = 1 do
+            cover = cover - 1 
+        end
+    end
+end 
+
+if cover > 0
+    h(i) = 1
+else
+    h(i) = 0
+end
+\end{verbatim}
+Choose the one that maximizes the cover+uncover gain for $\mathbf{A}^{k}$ compared to $\mathbf{A}^{k-1}$.
+
+% By transposing the input matrix $\mathbf{X}$, a different approximation matrix is constructed, but this can be an advantage to us. 
+
+\subsection{PP -  LL Asso} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+I suggest the following modifications 
+
+(a) Replace the association matrix with a posterior probability matrix \cite{Agrawal1993Mining}. This is obtained from $\alpha, \beta$, and $\mathbf{A}$, where $\mathbf{A}$ refers to the previous iteration of the Step 1 - Step 2 oscillation.
+
+(b) Replace the {\it cover} function with the log likelihood. The output is then $\mathbf{A} = \mathbf{WH}$ approximating $\mathbf{S}$.
+
+\subsubsection*{Association and posterior probability} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The association function 
+\begin{align}
+ \frac{<\mathbf{x}_{\ell}, \mathbf{x}_i>}{<\mathbf{x}_{i},\mathbf{x}_{i}>}
+\end{align}
+can be regarded as an estimate of the posterior probability
+\begin{align}
+  P(X_{\ell j} = 1 | x_{i j} = 1) = \frac{P(X_{\ell j} = 1, X_{i j} = 1)}{P( X_{i j} = 1)}
+\end{align}
+by independence assumption on the $j$s such that 
+\begin{align}
+  E [ P(X_{\ell j} = 1 | x_{i j} = 1)] \approx  \frac{1}{d} \sum_{j = 1}^ d \frac{P(X_{\ell j} = 1, X_{i j} = 1)}{P( X_{i j} = 1)}.
+\end{align}
+
+I propose
+\begin{align}
+&   E [ P(X_{\ell j} = 1 | x_{i j} = 1)] \approx  P(X_{\ell j} = 1 | a_{i j} = 1)
+\end{align}
+It is now possible to find the conditional distribution by logistic regression in the same fashion as Eq.~\ref{eq:iAlpha} and \ref{eq:iBeta}, but perhaps it is too time consuming. 
+Or perhaps not.
+The link function is
+\begin{align}
+   P(X_{\ell j} = 1 | a_{i j} = 1) =  \pi_\ell(a_{ij}= 1) = \frac{e^{\alpha_{\ell} + \beta_{\ell}}}{1 + e^{\alpha_{\ell} + \beta_{\ell}}} = \frac{n_{1,1}}{n_{0,1} + n_{1,1}}
+\end{align}
+and $n_{0,1}$ refers to the number of entries $j$ where $x_{\ell j} = 0$ and $a_{ij} = 1$. 
+
+This is the same as
+\begin{align}
+  \frac{<\mathbf{x}_{\ell},\mathbf{a}_i>}{<\mathbf{a}_{i},\mathbf{a}_{i}>}
+\end{align}
+
+\subsubsection*{Log likelihood} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Now that we have our passosiation matrix
+\begin{align} \label{eq:PAssociation}
+  z_{\ell i} =
+   \begin{cases}
+      1 & \text{if }  \frac{<\mathbf{x}_{\ell}, \mathbf{a}_i>}{<\mathbf{a}_{i},\mathbf{a}_{i}>} \geq \tau \\
+      0 \, &otherwise,
+    \end{cases}
+\end{align}
+let us pick from $\mathbf{Z}$ the basis column $\mathbf{w}$ that together with a carefully chosen vector $\mathbf{h}$ will maximise
+\begin{align}
+ & \log L \big ((WH)_{ij}|\mathbf{X}, \alpha_{i}, \beta_{i} \big ) \\
+ =& \sum_{i j}x_{ij} \log  \pi_i((WH)_{ij})+ \sum_{i j} \big (1 - x_{ij} \big)\log  \big ( 1 - \pi_i((WH)_{ij}) \big), \nonumber
+\end{align}
+where $\mathbf{W} = [\mathbf{W} \mathbf{w}]$ and  $\mathbf{H} = [\mathbf{H}; \mathbf{h}]$.
+
+Is this possible to do efficiently?
+We know from Eq.~\ref{eq:iLoglik_gain} that the gain of choosing $(WH)_{ij} = x_{ij}$ over $(WH)_{ij} \neq x_{ij}$ is $-\alpha_i$.
+So we count $n_{=,i}$  for each row $i$ where $(WH)_{ij} = x_{ij}$ and $d- n_{=,i} $ for each row $i$ where  $(WH)_{ij} \neq x_{ij}$, and the log likelihood becomes
+\begin{align}
+ \log L \big ((WH)_{ij}|\mathbf{X}, \alpha_{i}, \beta_{i} \big ) =\sum_{i} \alpha_i (d - 2 n_{=,i}).
+\end{align}
+We want to compare this to the log likelihood with for the $t-1$ rank approximation
+\begin{align}
+ \log L \big ((WH)^{(k-1)}_{ij}|\mathbf{X}, \alpha_{i}, \beta_{i} \big ) =\sum_{i} \alpha_i (d - 2 n^{k-1}_{=,i}).
+\end{align}
+and we get
+\begin{align}
+ \log L - \log L^{k-1} = 2 \sum_{i} \alpha_i ( n^{k-1}_{=,i} - n_{=,i}).
+\end{align}
+
+This seems just as efficient as the {\it cover} function.
+
+\subsubsection*{PP-LL Asso algorithm} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+{\bf Input:} Binary matrix $\mathbf{X}_{n \times d}$, binary matrix $\mathbf{A}_{n \times d}$,  rank $K$ and threshold $\tau$. \\
+{\bf Output:} Binary matrices $\mathbf{W}_{n \times K}$ and $\mathbf{H}_{K \times d}$  such that $X_{ij} \sim Bernoulli (\pi(WH_{ij}))$ is likely given $\alpha$ and $\beta$. \\
+\begin{align*}
+  \mathbf{Z}^{0}:  z_{\ell i} =
+   \begin{cases}
+      1 & \text{if }  \frac{<\mathbf{x}_{\ell}, \mathbf{a}_i>}{<\mathbf{a}_{i},\mathbf{a}_{i}>} \geq \tau \\
+      0 \, &otherwise
+    \end{cases}
+\end{align*}
+$\mathbf{W} = [\, ]$,  $\mathbf{H} = [\, ]$ \\
+{\bf for} rank k = 1 to K {\bf do} \\
+\indent Choose column $\mathbf{w}_{k}$ from $\mathbf{Z}^{k-1}$ and construct a corresponding row $\mathbf{h}_{k}$ such that the rank $k$ approximation $\mathbf{WH}$ where  $\mathbf{W} = [\mathbf{W}\, \mathbf{w}_{k}]$,  $\mathbf{H} = [\mathbf{H} ;\, \mathbf{h}_{k}]$ maximises the increase in log likelihood:
+  \begin{align*}
+   \log L - \log L^{k-1} = \sum_{i} \alpha_i ( n^{k-1}_{=,i} - n_{=,i}).
+\end{align*}
+\indent Update $\mathbf{Z}^k = \mathbf{Z}^{k-1} \backslash \mathbf{w}_{k}$ \\
+{\bf end}
+
+\subsubsection*{Next steps} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Implement algorithm \\ 
+Investigate a cell-gene oscillation
+
+
+
+\subsection*{Appendix: Analytical solution to $\alpha$ and $\beta$} %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+I suspect that there exists an analytic solution to the maximum log likelihood problem in Eq.~\ref{eq:iAlpha} and  Eq.~\ref{eq:iBeta}.
+Recall that
+\begin{align*}
+  \pi_i(a_{ij}) = \frac{e^{\alpha_{i} + \beta_{i} a_{ij}}}{1 + e^{\alpha_{i} + \beta_{i} a_{ji}}}, \, i = 1, \ldots, n  \hspace{5mm}  (\ref{eq:LinkCell})
+\end{align*}
+and the $\alpha_{i}$'s and the $\beta_{i}$'s can be estimated by
+\begin{align*}
+  \frac{\partial}{\partial \alpha_i} \log L(\alpha_i, \beta_i|\mathbf{X}) &= \sum_{j} \big (x_{ij} -\pi_i(a_{ij}) \big ) = 0   \hspace{5mm}  (\ref{eq:iAlpha}) \\
+  \frac{\partial}{\partial \beta_i} \log L(\alpha_i, \beta_i|\mathbf{X}) &= \sum_{j}\big  (x_{ij} - \pi_i(a_{ij}) \big )a_{ij} = 0, \hspace{5mm}  (\ref{eq:iBeta})
+\end{align*}
+and also keep in mind that
+\begin{align*}
+  & p_{ij} =  \frac{1}{1 + e^{\alpha_{ij}}} =  \frac{e^{\alpha_{ij} + \beta_{ij}}}{1 + e^{\alpha_{ij} + \beta_{ij}}} \hspace{5mm}  (\ref{eq:p_alpha_pi}) \\
+  & \pi_{ij}(1)  = 1 - \pi_{ij}(0) \nonumber
+\end{align*}
+
+
+\bibliographystyle{acm}
+\bibliography{logisticBMF}
+
+
+
+\end{document}
